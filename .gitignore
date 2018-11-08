@@ -1,0 +1,15 @@
+Intermediate/
+Saved/
+Deploy/
+Binaries/
+*.sln
+*.db
+*.opendb
+*.avi
+*.mov
+*.png
+IosData/
+Build/
+hooks/
+*.ipch
+.vs/
