@@ -98,17 +98,33 @@ void UTCPServerComponent::StartListenServer(const FString& Ip, int32 Port)
 								OnReceivedString.Broadcast(data);
 							});
 						}
-					}
+						
+						Mutex.Lock();
+						for (FTCPMessage& TCPMessage : MessageQueque)
+						{
+							if (!TCPMessage.bExpired)
+							{
+								int32 BytesSent = 0;								
+								const FString Message = TCPMessage.GetMessage();
+								bool bSent = Client->Send((uint8*)TCHAR_TO_UTF8(*Message), Message.Len(), BytesSent);
+
+								if (bSent)
+								{
+									UE_LOG(LogTemp, Warning, TEXT("------ Message Sent ------ %s"), *Message);
+									TCPMessage.bExpired = true;
+								}	
+								else
+								{
+									UE_LOG(LogTemp, Error, TEXT("------ Probably Disconnected ------"));
+									//todo: remove from array
+								}
+							}
+						}
+						Mutex.Unlock();
+					}					
 
 					FPlatformProcess::Sleep(.00001);
-				}
-
-				//Server ended
-				AsyncTask(ENamedThreads::GameThread, [&]()
-				{
-					Clients.Empty();
-					OnListenSocketStop.Broadcast();
-				});			
+				}						
 			});
 		}
 		else
@@ -126,13 +142,15 @@ void UTCPServerComponent::StopListenServer()
 {
 	if (ListenSocket)
 	{
+		bServerRunning = false;
+		ServerFinishedFuture.Wait();
+
 		for (FSocket* Client : Clients)
 		{
 			Client->Close();
 		}
 
-		bServerRunning = false;
-		//ServerFinishedFuture.Get();
+		Clients.Empty();
 
 		ListenSocket->Close();
 		ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(ListenSocket);
@@ -150,6 +168,22 @@ FString UTCPServerComponent::StringFromBinaryArray(TArray<uint8> BinaryArray)
 }
 
 void UTCPServerComponent::SendMessage(const FString& Message)
-{
+{	
+	Mutex.Lock();
 
+	ClearExpired();
+	MessageQueque.Add(FTCPMessage(Message, 0));	
+
+	Mutex.Unlock();
+}
+
+void UTCPServerComponent::ClearExpired()
+{
+	for (int32 i = 0; i < MessageQueque.Num(); ++i)
+	{
+		if (MessageQueque[i].bExpired)
+		{
+			MessageQueque.RemoveAt(i);
+		}
+	}
 }

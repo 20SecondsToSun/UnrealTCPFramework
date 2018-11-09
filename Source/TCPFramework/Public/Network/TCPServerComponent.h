@@ -21,6 +21,46 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FTCPMessageDelegate, const TArray<ui
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FTCPStringMessageDelegate, const FString&, Message);
 
 
+USTRUCT(BlueprintType)
+struct FTCPMessage
+{
+	GENERATED_USTRUCT_BODY()
+
+public:
+	FTCPMessage()
+	{
+
+	}
+
+	FTCPMessage(const FString& Mess, int32 Id):
+		Message(Mess), ClientId(Id)
+	{
+
+	}
+
+	bool operator==(const FTCPMessage& OtherTCPMessage)
+	{ 
+		return (OtherTCPMessage.bExpired == this->bExpired &&
+				OtherTCPMessage.Message == this->Message &&
+				OtherTCPMessage.ClientId == this->ClientId &&
+				OtherTCPMessage.Delimeter == this->Delimeter);
+	}
+
+	FString GetMessage() const
+	{
+		return Message + Delimeter;
+	}
+
+	bool bExpired = false;
+
+private:
+	FString Message;
+	int32 ClientId;
+	
+	FString Delimeter = "\t";
+};
+
+
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class TCPFRAMEWORK_API UTCPServerComponent : public UActorComponent
 {
@@ -73,10 +113,16 @@ public:
 protected:
 	virtual void BeginPlay() override;	
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
-	
+
+private:
 	FSocket* ListenSocket;
 	TArray<FSocket*> Clients;
 
 	bool bServerRunning = true;
 	TFuture<void> ServerFinishedFuture;	
+
+	FCriticalSection Mutex;
+	TArray<FTCPMessage> MessageQueque;
+
+	void ClearExpired();
 };
